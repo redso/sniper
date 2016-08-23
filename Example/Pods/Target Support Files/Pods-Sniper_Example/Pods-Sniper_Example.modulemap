@@ -1,0 +1,6 @@
+framework module Pods_Sniper_Example {
+  umbrella header "Pods-Sniper_Example-umbrella.h"
+
+  export *
+  module * { export * }
+}

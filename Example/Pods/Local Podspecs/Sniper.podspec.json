@@ -1,0 +1,30 @@
+{
+  "name": "Sniper",
+  "version": "0.1.0",
+  "summary": "A short description of Sniper.",
+  "description": "TODO: Add long description of the pod here.",
+  "homepage": "https://github.com/<GITHUB_USERNAME>/Sniper",
+  "license": {
+    "type": "MIT",
+    "file": "LICENSE"
+  },
+  "authors": {
+    "Paulo Lam": "paulo@beyond-six.com"
+  },
+  "source": {
+    "git": "https://github.com/<GITHUB_USERNAME>/Sniper.git",
+    "tag": "0.1.0"
+  },
+  "platforms": {
+    "ios": "8.0"
+  },
+  "source_files": "Sniper/Classes/**/*",
+  "dependencies": {
+    "Alamofire": [
+      "~> 3.4"
+    ],
+    "CSwiftV": [
+
+    ]
+  }
+}

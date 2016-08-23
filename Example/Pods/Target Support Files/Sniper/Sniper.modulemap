@@ -1,0 +1,6 @@
+framework module Sniper {
+  umbrella header "Sniper-umbrella.h"
+
+  export *
+  module * { export * }
+}
