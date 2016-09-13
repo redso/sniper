@@ -19,6 +19,7 @@ Pod::Spec.new do |s|
 
   s.description      = <<-DESC
 Sniper provide a easy way to sync your location strings in Google Spread Sheet. You no longer need to build your app again because of fixing a typo. It also included version control for different app version.
+DESC
 
   s.homepage         = 'https://github.com/RedSoldierLtd/Sniper'
   # s.screenshots     = 'www.example.com/screenshots_1', 'www.example.com/screenshots_2'
