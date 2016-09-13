@@ -98,7 +98,7 @@ struct Language {
   
   public func getAvailableLocaleList() -> [String] {
     var list = [String]()
-    for (key, value) in languages {
+    for (_, value) in languages {
       list.append(value.localeIdentifier)
     }
     return list
@@ -106,7 +106,7 @@ struct Language {
   
   public func getAvailableLanguageOptions() -> [String] {
     var list = [String]()
-    for (key, value) in languages {
+    for (_, value) in languages {
       list.append(value.languageDescription)
     }
     return list
@@ -120,28 +120,6 @@ struct Language {
 
 // MARK: Google Spread Sheet
 extension Sniper {
-//  public func setAvailableLanguage(locale:NSLocale? ,locales:String...) {
-//    self.languageLocaleList = locales
-//    self.locale = self.languageLocaleList[0]
-//    
-//    if let locale = locale {
-//      let language = locale.localeIdentifier
-//      //print(language)
-//      if languageLocaleList.contains(language) {
-//        self.locale = language
-//      }
-//    }
-//    else {
-//      let locale = NSLocale.currentLocale()
-//      let language = locale.localeIdentifier
-//      //print(language)
-//      if languageLocaleList.contains(language) {
-//        self.locale = language
-//      }
-//    }
-//    
-//    buildLanguageData()
-//  }
   
   public func retrieveRemoteWordDict(googleSpreadSheetKey : String?) {
     if let key = googleSpreadSheetKey {
@@ -289,7 +267,6 @@ extension Sniper {
   
   func persistentContent(content:String) {
     if let dirPath = self.resourcesDirectory() {
-      let fileManager = NSFileManager.defaultManager()
       let filePath = dirPath+"/sniper_cache.txt"
       if let data = content.dataUsingEncoding(NSUTF8StringEncoding) {
         data.writeToFile(filePath, atomically: true)
@@ -303,7 +280,7 @@ extension Sniper {
       
       do {
         let content = try NSString(contentsOfFile: readPath, encoding: NSUTF8StringEncoding)
-        return content as? String
+        return content as String
       } catch let error as NSError {
         print(error.localizedDescription)
         return nil
