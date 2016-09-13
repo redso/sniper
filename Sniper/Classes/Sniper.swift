@@ -16,7 +16,7 @@ typealias StringsDict = [String:String]
   var googleSpreadSheetKey : String?
   var hasRemoteSpreadSheetKey : Bool {
     get {
-      if let googleSpreadSheetKey = googleSpreadSheetKey {
+      if googleSpreadSheetKey != nil {
         return true
       }
       return false
@@ -160,9 +160,6 @@ extension Sniper {
                 let tmpGid = columns[2]
                 
                 if platform == "ios" {
-                  let a = Float(version)
-                  let b = Float(minVersion)
-                  
                   if Float(version) >= Float(minVersion) {
                     gid = tmpGid
                   }
