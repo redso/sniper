@@ -15,29 +15,29 @@ class ViewController: UIViewController {
     super.viewDidLoad()
     // Do any additional setup after loading the view, typically from a nib.
     
-    NSNotificationCenter.defaultCenter().addObserver(self, selector: #selector(wordDictDidSync(_:)), name: kWordDictDidSyncNotification, object: nil)
-    Sniper.sharedInstance.setAvailableLanguage(nil, locales: "en", "zh")
-    print("TXT_test".localizedString())
-    print("TXT_test2".localizedString())
-    print("TXT_test3".localizedString())
-    print("TXT_test4".localizedString())
-    print("TXT_test5".localizedString())
-    //Test.tryPrint()
-    Sniper.sharedInstance.getRemoteWordDict("1Cx4POxesRmDHNcMGykQ3vOvEufKgcYhWZAyFMRZN5HQ")
+    NSNotificationCenter.defaultCenter().addObserver(self, selector: #selector(wordDictDidSync(_:)), name: SniperWordDictDidSyncNotification, object: nil)
     
-    
+    NSNotificationCenter.defaultCenter().addObserver(self, selector: #selector(localeIdentifierDidUpdate(_:)), name: SniperLocaleIdentifierDidUpdateNotification, object: nil)
+    Sniper.sharedInstance.addSupportingLanguage("en", languageDescription: "English", languageFileName: "en")
+    Sniper.sharedInstance.addSupportingLanguage("zh-Hant", languageDescription: "繁體中文", languageFileName: "zh-Hant")
+    Sniper.sharedInstance.addSupportingLanguage("ja", languageDescription: "日文", languageFileName: "ja")
+    Sniper.saveSelectedLocaleIdentifier("en")
+    Sniper.sharedInstance.retrieveRemoteWordDict("1Cx4POxesRmDHNcMGykQ3vOvEufKgcYhWZAyFMRZN5HQ")
   }
   
   func wordDictDidSync(notify:NSNotification) {
     for locale in Sniper.sharedInstance.getAvailableLocaleList() {
-      Sniper.sharedInstance.locale = locale
+      Sniper.saveSelectedLocaleIdentifier(locale)
+    }
+  }
+  
+  func localeIdentifierDidUpdate(notify:NSNotification) {
+      print("------\(Sniper.sharedInstance.getCurrentLocaleIdentifier())------")
       print("TXT_test".localizedString())
       print("TXT_test2".localizedString())
       print("TXT_test3".localizedString())
       print("TXT_test4".localizedString())
       print("TXT_test5".localizedString())
-      //Test.tryPrint()
-    }
   }
   
   override func didReceiveMemoryWarning() {

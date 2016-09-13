@@ -2,67 +2,59 @@ import Foundation
 import Alamofire
 import CSwiftV
 
-public let kWordDictDidSyncNotification = "kWordDictDidSyncNotification"
+public let SniperWordDictDidSyncNotification = "SniperWordDictDidSyncNotification"
+public let SniperLocaleIdentifierDidUpdateNotification = "SniperLocaleIdentifierDidSavedNotification"
+
 typealias StringsDict = [String:String]
 
+struct Language {
+  var localeIdentifier : String
+  var wordDict : StringsDict = StringsDict()
+  var languageDescription : String
+}
+
+
 @objc public class Sniper : NSObject {
-  public static let sharedInstance = Sniper(locales: "en")
+  public static let sharedInstance = Sniper(bundle: NSBundle.mainBundle(), locale: NSLocale.currentLocale())
   
-  let levels = ["base", "sync", "project"]
-  
-  var languageLocaleList: [String]
-  var languageDict: [String:StringsDict] = [String:StringsDict]()
+  var localeIdentifier: String {
+    didSet {
+      NSNotificationCenter.defaultCenter().postNotificationName(SniperLocaleIdentifierDidUpdateNotification, object: nil)
+    }
+  }
+  var languages : [String:Language] = [String:Language]()
   var bundle: NSBundle
   var googleSpreadSheetKey : String?
-  var hasRemoteSpreadSheetKey : Bool {
-    get {
-      if googleSpreadSheetKey != nil {
-        return true
-      }
-      return false
-    }
-  }
-  var remoteLanguageOptions: [String]?
   
-  public var locale: String
-  
-  convenience public init(locales : String...) {
-    self.init(bundle: NSBundle.mainBundle(), locale: NSLocale.currentLocale(), locales: locales)
+  public class func selectedLocaleIdentifier() -> String? {
+    return NSUserDefaults.standardUserDefaults().objectForKey("sniper.selectedLocaleIdentifier.value") as? String
   }
   
-  convenience public init(bundle: NSBundle, locales : String...) {
-    self.init(bundle: bundle, locale: NSLocale.currentLocale(), locales: locales)
+  public class func saveSelectedLocaleIdentifier(localeIdentifier:String) {
+    Sniper.sharedInstance.localeIdentifier = localeIdentifier
+    return NSUserDefaults.standardUserDefaults().setObject(localeIdentifier, forKey: "sniper.selectedLocaleIdentifier.value")
   }
   
-  convenience public init(locale: NSLocale, locales : [String]) {
-    self.init(bundle: NSBundle.mainBundle(), locale: locale, locales: locales)
-  }
-  
-  convenience public init(bundle: NSBundle, locale: NSLocale, locales : String...) {
-    self.init(bundle: bundle, locale: locale, locales: locales)
-  }
-  
-  public init(bundle: NSBundle, locale: NSLocale, locales : [String]) {
+  public init(bundle: NSBundle, locale : NSLocale) {
     self.bundle = bundle
-    self.languageLocaleList = locales
-    self.locale = self.languageLocaleList[0]
-    self.googleSpreadSheetKey = nil
     
-    let language = locale.localeIdentifier
-    //print(language)
-    if languageLocaleList.contains(language) {
-      self.locale = language
+    if let storedIdentifier = Sniper.selectedLocaleIdentifier() {
+      self.localeIdentifier = storedIdentifier
     }
+    else {
+      self.localeIdentifier = locale.localeIdentifier
+    }
+    
     super.init()
-    buildLanguageData()
-    getRemoteWordDict(self.googleSpreadSheetKey)
+    if let content = self.loadCachedContent() {
+      self.parseSpreadSheetContent(content)
+    }
   }
   
   public func getString(key: String) -> String {
-    let wordings = languageDict[self.locale]
-    if let w = wordings {
-      if w.keys.contains(key).boolValue {
-        return w[key]!
+    if let language = languages[self.localeIdentifier] {
+      if language.wordDict.keys.contains(key).boolValue {
+        return language.wordDict[key]!
       }
     }
     //    NSException(name: "KeyNotFoundException",
@@ -70,77 +62,90 @@ typealias StringsDict = [String:String]
     //                userInfo: nil).raise()
     return ""
   }
-  
-  func buildLanguageData(){
-    languageDict.removeAll()
     
-    for locale in languageLocaleList {
-      var stringsDict : StringsDict = StringsDict()
-      languageDict[locale] = stringsDict
-      
-      for level in levels {
-        let fileName = locale + "." + level
-        let filePath = self.bundle.pathForResource(fileName, ofType: "strings")
-        if filePath == nil {
-          printLog(fileName + " is not available")
-          continue
-        }
-        
-        let rawStringDict = NSDictionary(contentsOfFile: filePath!)
-        if let dict = rawStringDict {
-          for (rawStringKey, rawStringValue) in dict {
-            stringsDict[rawStringKey as! String] = rawStringValue as? String
-          }
-        } else {
-          printLog(fileName + " is not available")
-          continue
-        }
-      }
-      languageDict[locale] = stringsDict
+  public func addSupportingLanguage(localeIdentifier:String, languageDescription:String, languageFileName:String) {
+    
+    let filePath = self.bundle.pathForResource(languageFileName, ofType: "strings")
+    if filePath == nil {
+      printLog(languageFileName + " is not available")
+      return
     }
+    
+    var stringsDict : StringsDict = StringsDict()
+    let rawStringDict = NSDictionary(contentsOfFile: filePath!)
+    if let dict = rawStringDict {
+      for (rawStringKey, rawStringValue) in dict {
+        stringsDict[rawStringKey as! String] = rawStringValue as? String
+      }
+    } else {
+      printLog(languageFileName + " is not available")
+      return
+    }
+    
+    let newLanguage = Language(localeIdentifier: localeIdentifier, wordDict: stringsDict, languageDescription: languageDescription)
+    self.languages[localeIdentifier] = newLanguage
+  }
+  
+  func addSupportingLanguage(localeIdentifier:String, languageDescription:String, wordDict:StringsDict) {
+    let newLanguage = Language(localeIdentifier: localeIdentifier, wordDict: wordDict, languageDescription: languageDescription)
+    self.languages[localeIdentifier] = newLanguage
+  }
+  
+  
+  public func getCurrentLocaleIdentifier() -> String {
+    return self.localeIdentifier
   }
   
   public func getAvailableLocaleList() -> [String] {
-    return languageLocaleList
+    var list = [String]()
+    for (key, value) in languages {
+      list.append(value.localeIdentifier)
+    }
+    return list
   }
   
   public func getAvailableLanguageOptions() -> [String] {
-    return remoteLanguageOptions ?? []
+    var list = [String]()
+    for (key, value) in languages {
+      list.append(value.languageDescription)
+    }
+    return list
   }
   
   func printLog(log : String){
-    print("[RSMultiLanguage] " + log)
+    print("[Sniper] " + log)
   }
   
 }
 
 // MARK: Google Spread Sheet
 extension Sniper {
-  public func setAvailableLanguage(locale:NSLocale? ,locales:String...) {
-    self.languageLocaleList = locales
-    self.locale = self.languageLocaleList[0]
-    
-    if let locale = locale {
-      let language = locale.localeIdentifier
-      //print(language)
-      if languageLocaleList.contains(language) {
-        self.locale = language
-      }
-    }
-    else {
-      let locale = NSLocale.currentLocale()
-      let language = locale.localeIdentifier
-      //print(language)
-      if languageLocaleList.contains(language) {
-        self.locale = language
-      }
-    }
-    
-    buildLanguageData()
-  }
+//  public func setAvailableLanguage(locale:NSLocale? ,locales:String...) {
+//    self.languageLocaleList = locales
+//    self.locale = self.languageLocaleList[0]
+//    
+//    if let locale = locale {
+//      let language = locale.localeIdentifier
+//      //print(language)
+//      if languageLocaleList.contains(language) {
+//        self.locale = language
+//      }
+//    }
+//    else {
+//      let locale = NSLocale.currentLocale()
+//      let language = locale.localeIdentifier
+//      //print(language)
+//      if languageLocaleList.contains(language) {
+//        self.locale = language
+//      }
+//    }
+//    
+//    buildLanguageData()
+//  }
   
-  public func getRemoteWordDict(key : String?) {
-    if let key = key {
+  public func retrieveRemoteWordDict(googleSpreadSheetKey : String?) {
+    if let key = googleSpreadSheetKey {
+      self.googleSpreadSheetKey = key
       //"https://docs.google.com/spreadsheets/u/1/d/1Cx4POxesRmDHNcMGykQ3vOvEufKgcYhWZAyFMRZN5HQ/export?exportFormat=csv&gid=1133219217"
       Alamofire.request(.GET, "https://docs.google.com/spreadsheets/u/1/d/\(key)/export?exportFormat=csv").responseData(completionHandler: { (response) in
         if response.result.isSuccess {
@@ -192,52 +197,12 @@ extension Sniper {
       if response.result.isSuccess {
         if let content = String.init(data: response.data!, encoding:NSUTF8StringEncoding) {
           //print (content)
+          self.languages.removeAll()
           
-          let csv = CSwiftV(string: content)
+          self.parseSpreadSheetContent(content)
+          self.persistentContent(content)
           
-          var wordDict = [String:StringsDict]()
-          var locales = csv.headers
-          locales.removeFirst()
-          self.languageLocaleList = locales
-          if !self.languageLocaleList.contains(self.locale) {
-            self.locale = self.languageLocaleList[0]
-          }
-          for lang in self.languageLocaleList {
-            wordDict[lang] = [:]
-          }
-          
-          let rows = csv.rows
-          for index in 0..<rows.count {
-            let row = rows[index]
-            let columns = row
-            
-            if index == 0 {
-              var options = columns
-              options.removeFirst()
-              self.remoteLanguageOptions = options
-            }
-            else {
-              if columns.count >= self.languageLocaleList.count {
-                let wordKey = columns[0]
-                for wordIndex in 1..<columns.count {
-                  let word = columns[wordIndex]
-                  if wordIndex-1 < self.languageLocaleList.count {
-                    let locale = self.languageLocaleList[wordIndex-1]
-                    if var langWords = wordDict[locale] {
-                      langWords[wordKey] = word
-                      wordDict[locale] = langWords
-                    }
-                  }
-                }
-              }
-            }
-          }
-          //          print("-----localelist-----\n\(self.languageLocaleList)\n")
-          //          print("-----options-----\n\(self.remoteLanguageOptions!)\n")
-          //          print("-----worddict-----\n\(wordDict)\n")
-          self.languageDict = wordDict
-          
-          NSNotificationCenter.defaultCenter().postNotificationName(kWordDictDidSyncNotification, object: nil)
+          NSNotificationCenter.defaultCenter().postNotificationName(SniperWordDictDidSyncNotification, object: nil)
         }
         else {
           print("FAILURE")
@@ -251,5 +216,100 @@ extension Sniper {
         print(response.response)
       }
     })
+  }
+  
+  func parseSpreadSheetContent(content:String) {
+    let csv = CSwiftV(string: content)
+    
+    var wordDicts = [String:StringsDict]()
+    var locales = csv.headers
+    locales.removeFirst()
+    var localeDesc = [String]()
+    
+    if !locales.contains(self.localeIdentifier) {
+      self.localeIdentifier = locales[0]
+    }
+    
+    for lang in locales {
+      wordDicts[lang] = [:]
+    }
+    
+    let rows = csv.rows
+    for index in 0..<rows.count {
+      let row = rows[index]
+      let columns = row
+      
+      if index == 0 {
+        var options = columns
+        options.removeFirst()
+        localeDesc = options
+      }
+      else {
+        if columns.count >= locales.count {
+          let wordKey = columns[0]
+          for wordIndex in 1..<columns.count {
+            let word = columns[wordIndex]
+            if wordIndex-1 < locales.count {
+              let locale = locales[wordIndex-1]
+              if var langWords = wordDicts[locale] {
+                langWords[wordKey] = word
+                wordDicts[locale] = langWords
+              }
+            }
+          }
+        }
+      }
+      
+      for index in 0..<locales.count {
+        self.addSupportingLanguage(locales[index], languageDescription: localeDesc[index], wordDict: wordDicts[locales[index]]!)
+      }
+    }
+    //          print("-----localelist-----\n\(self.languageLocaleList)\n")
+    //          print("-----options-----\n\(self.remoteLanguageOptions!)\n")
+    //          print("-----worddict-----\n\(wordDict)\n")
+  }
+  
+  
+  func resourcesDirectory() -> String? {
+    let directory = NSSearchPathDirectory.DocumentDirectory
+    let domainMask = NSSearchPathDomainMask.UserDomainMask
+    let paths = NSSearchPathForDirectoriesInDomains(directory, domainMask, true)
+    
+    if paths.count > 0 {
+      if let dirPath = paths.first {
+        return dirPath
+      }
+    }
+    else {
+      printLog("resourcesStorePath fail, no resourcesStorePath")
+    }
+    
+    return nil
+  }
+  
+  func persistentContent(content:String) {
+    if let dirPath = self.resourcesDirectory() {
+      let fileManager = NSFileManager.defaultManager()
+      let filePath = dirPath+"/sniper_cache.txt"
+      if let data = content.dataUsingEncoding(NSUTF8StringEncoding) {
+        data.writeToFile(filePath, atomically: true)
+      }
+    }
+  }
+  
+  func loadCachedContent() -> String? {
+    if let dirPath = self.resourcesDirectory() {
+      let readPath = dirPath+"/sniper_cache.txt"
+      
+      do {
+        let content = try NSString(contentsOfFile: readPath, encoding: NSUTF8StringEncoding)
+        return content as? String
+      } catch let error as NSError {
+        print(error.localizedDescription)
+        return nil
+      }
+    }
+    
+    return nil
   }
 }
